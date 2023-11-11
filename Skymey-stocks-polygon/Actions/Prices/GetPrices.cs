@@ -45,13 +45,15 @@ namespace Skymey_stocks_polygon.Actions.Prices
                 var r = _client.Execute(_request).Content;
                 TickerPrices tp = new JavaScriptSerializer().Deserialize<TickerPrices>(r);
                 #endregion
-                
-                    foreach (var ticker in tp.tickers)
+                var ticker_finds = (from i in _db.Ticker select i);
+                //tp.tickers = (from i in tp.tickers select i);
+                foreach (var ticker in tp.tickers)
                     {
-                        //Console.WriteLine(ticker.ticker);
-                        var ticker_find = (from i in _db.Ticker where i.ticker == ticker.ticker select i).FirstOrDefault();
+                    //if(ticker.ticker == "MSFT") {Console.WriteLine(ticker.ticker);}
+                    //Console.WriteLine(ticker.ticker);
+                    var ticker_find = (from i in ticker_finds where i.ticker == ticker.ticker select i).FirstOrDefault();
 
-                        if (ticker_find == null)
+                    if (ticker_find == null)
                         {
                             ticker._id = ObjectId.GenerateNewId();
                             ticker.Update = DateTime.UtcNow;
@@ -68,7 +70,8 @@ namespace Skymey_stocks_polygon.Actions.Prices
 
                     }
                     _db.SaveChanges();
-                
+                Console.WriteLine("Saved! " + DateTime.UtcNow);
+
             }
             catch (Exception ex)
             {
