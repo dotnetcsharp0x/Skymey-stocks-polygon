@@ -10,10 +10,6 @@ namespace Skymey_stocks_polygon
 {
     class Program
     {
-        private static RestClient _client;
-        private static RestRequest _request;
-        private static MongoClient _mongoClient;
-        private static ApplicationContext _db;
         static async Task Main(string[] args)
         {
             var builder = new HostBuilder()
@@ -46,7 +42,7 @@ namespace Skymey_stocks_polygon
                 try
                 {
                     gp.GetPricesFromPolygon();
-                    await Task.Delay(TimeSpan.FromSeconds(0));
+                    await Task.Delay(TimeSpan.FromSeconds(20));
                 }
                 catch (Exception ex)
                 {
