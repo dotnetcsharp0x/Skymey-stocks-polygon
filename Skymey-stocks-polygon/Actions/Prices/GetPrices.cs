@@ -18,8 +18,7 @@ namespace Skymey_stocks_polygon.Actions.Prices
     {
         private RestClient _client;
         private RestRequest _request;
-        private MongoClient _mongoClient;
-        private ApplicationContext _db;
+        
         private string _apiKey;
         public GetPrices()
         {
@@ -32,10 +31,9 @@ namespace Skymey_stocks_polygon.Actions.Prices
             _apiKey = config.GetSection("ApiKeys:Polygon").Value;
             _client = new RestClient("https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?apiKey=" + _apiKey);
             _request = new RestRequest("https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?apiKey=" + _apiKey, Method.Get);
-            _mongoClient = new MongoClient("mongodb://127.0.0.1:27017");
-            _db = ApplicationContext.Create(_mongoClient.GetDatabase("skymey"));
+            
         }
-
+        public delegate void ParameterizedThreadStart(List<Ticker> tickers);
         public void GetPricesFromPolygon()
         {
             try
@@ -45,38 +43,56 @@ namespace Skymey_stocks_polygon.Actions.Prices
                 var r = _client.Execute(_request).Content;
                 TickerPrices tp = new JavaScriptSerializer().Deserialize<TickerPrices>(r);
                 #endregion
-                var ticker_finds = (from i in _db.Ticker select i);
-                //tp.tickers = (from i in tp.tickers select i);
-                foreach (var ticker in tp.tickers)
-                    {
-                    //if(ticker.ticker == "MSFT") {Console.WriteLine(ticker.ticker);}
-                    //Console.WriteLine(ticker.ticker);
-                    var ticker_find = (from i in ticker_finds where i.ticker == ticker.ticker select i).FirstOrDefault();
-
-                    if (ticker_find == null)
-                        {
-                            ticker._id = ObjectId.GenerateNewId();
-                            ticker.Update = DateTime.UtcNow;
-                            _db.Ticker.Add(ticker);
-                        }
-                        else
-                        {
-                            ticker_find.prevDay = ticker.prevDay;
-                            ticker_find.day = ticker.day;
-                            ticker_find.min = ticker.min;
-                            ticker_find.Update = DateTime.UtcNow;
-                            _db.Ticker.Update(ticker_find);
-                        }
-
-                    }
-                    _db.SaveChanges();
-                Console.WriteLine("Saved! " + DateTime.UtcNow);
-
+                
+                int divider = 5;
+                int sum = tp.tickers.Count;
+                int take = sum / divider;
+                int skip = 0;
+                for (int i=0; i<divider;i++)
+                {
+                    skip = i * take;
+                    Thread myThread1 = new Thread(() => ThreadMongo(tp.tickers.Skip(skip).Take(take).ToList()));
+                    myThread1.Start();
+                }
             }
             catch (Exception ex)
             {
             }
         }
+
+        
+        private void ThreadMongo(List<Ticker> tickers)
+        {
+            MongoClient _mongoClient;
+            ApplicationContext _db;
+            _mongoClient = new MongoClient("mongodb://127.0.0.1:27017");
+            _db = ApplicationContext.Create(_mongoClient.GetDatabase("skymey"));
+            var ticker_finds = (from i in _db.Ticker select i);
+            foreach (var ticker in tickers)
+            {
+                //Console.WriteLine(ticker.ticker);
+                var ticker_find = (from i in ticker_finds where i.ticker == ticker.ticker select i).FirstOrDefault();
+
+                if (ticker_find == null)
+                {
+                    ticker._id = ObjectId.GenerateNewId();
+                    ticker.Update = DateTime.UtcNow;
+                    _db.Ticker.Add(ticker);
+                }
+                else
+                {
+                    ticker_find.prevDay = ticker.prevDay;
+                    ticker_find.day = ticker.day;
+                    ticker_find.min = ticker.min;
+                    ticker_find.Update = DateTime.UtcNow;
+                    _db.Ticker.Update(ticker_find);
+                }
+            }
+            _db.SaveChanges();
+            _db.Dispose();
+            Console.WriteLine("Saved! " + DateTime.UtcNow);
+        }
+
         public void Dispose()
         {
         }
